@@ -1,0 +1,57 @@
+Quick Java
+
+Everything in Java, except for certain primitives, is an object.
+   Examples:  Robot, driveMotor, timer1.
+
+Objects need to be defined, then instantiated (created).  Define once, then instantiate one or more copies.
+   Examples: define object "motor",  then instantiate leftMotor and rightMotor.
+
+All objects are part of a class of objects.  One or more classes of objects must be contained in a package.  You import the packages you need to create a program.
+
+Defining an object means defining its variables and methods (things it can do).
+   Examples: leftMotor.on or leftMotor.off, gameTimer.start or gameTimer.reset.
+
+Instantiating an object means to create a specific instance of it, give it a name, and optionally initialize its variables.
+   Examples: gameTimer Timer;
+             gameTimer Timer = 1.0 ;seconds
+             leftMotor Motor;
+
+All data values have a type.  Higher data types are built on primitive data types.
+   Primitive data type examples: 
+             Integers: 1, 2, -3 ...
+             Characters: a, b, &, $ ...
+             Floating point: 3.145927, 12.345, -1000.0 ...
+             Boolean: True, False
+
+   Higher level data type examples:
+             String "abc"  (A String data type is a sequence of letters)
+             vector[n1, n2, n3]   (A vector is a sequence of numbers)
+             matrix[row][col]   (A matrix is a sequence of vectors)
+             Color(RED, GREEN, BLUE)  (A color is a sequence of three numbers)
+             Point(x, y)  (A point has an x and y coordinate)
+
+   In advanced applications, even objects can be data values!
+
+You can find out what an object can do by reading its Javadocs.
+
+Some object methods return a value of some data type, some do not return a value.  If the method returns a value, it must be assigned to a variable of the correct type.
+   Example: myString.isNull returns True or False
+            myString.size returns an integer
+            myPicture[x, y].getColor returns a data type of Color (three numbers)
+            myMotor.on does not return a value, but it turns the motor on.
+
+Program statements are executed sequentially, unless one of several program control statements is used to change the sequence.
+   If-else statements:  if (a < b) then {do these statements} else {do these statements};
+   For statements:   for (int i=0, i<name.size(), i++) {do these statements};
+   While statements:  while (testValue != max) {do these statements};
+   Do-until statements:  do {these statements} until (testValue == 0);
+   Case statements:   TBD
+
+The main program is always called main.........
+
+The main program, and all the class methods of objects, end with the "end" statement or the "return" statement.
+
+The return statement can include a return value of the right data type.
+   Examples: return True; or return (2.0 * Math.PI * radius);
+
+Next: details of the class, constructor, and method definitions
