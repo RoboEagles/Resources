@@ -1,0 +1,189 @@
+
+
+#include <Wire.h>
+
+int i, j;
+int samples = 100;
+float myTime = 0.0;
+float lastTime = 0.0;
+float tc = 0.0;
+float dt = 0.0;
+byte MPUAddress = 0x68;
+byte MPURegister = 0;
+char* labels[] = {"Ax","Ay","Az","Tm","Gx","Gy","Gz"};
+byte sensorRawB[14];
+int sensorRawI[7];
+float readings[7];
+float sums[7] = {0,0,0,0,0,0,0};
+float calibrations[7];
+float divisors[7] = {42.40165631469979, 42.40165631469979, 42.40165631469979, 1.0, 131.0, 131.0, 131.0};
+float veloSums[3] = {0.0, 0.0, 0.0};
+float veloCalibs[3] = {0.0, 0.0, 0.0};
+float velocities[3] = {0,0,0};
+float distances[3] = {0,0,0};
+
+//Write a single byte to the MPU6050 over I2C.
+void writeByte(byte device, byte reg, byte data)  {
+  Wire.beginTransmission(device);
+  Wire.write(reg);
+  Wire.write(data);
+  Wire.endTransmission();
+}
+
+//Read a single byte from the MPU6050 over I2C.
+byte readByte(int device, byte reg)  {
+  byte result;
+  Wire.beginTransmission((byte)device);
+  Wire.write(reg);
+  Wire.endTransmission();
+  Wire.requestFrom(device, 1);
+  while (!Wire.available()) {}
+  result = Wire.read();
+  return result;
+}
+
+//Read multiple bytes from the MPU6050 over I2C.
+void readBytes(byte device, byte reg, byte count)  {
+  Wire.beginTransmission(device);
+  Wire.write(reg);
+  Wire.endTransmission();
+  Wire.requestFrom(device, count);
+  while (Wire.available()<count) {}
+  //bytes are in the buffer, so use Wire.read() to get them.
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  while (Serial.available()) Serial.read();  //clear the buffer.
+
+  Wire.begin();
+  delay(10);
+
+  writeByte(MPUAddress, 0x6B, 0);  //PWR_MGMT_1 => 0
+  writeByte(MPUAddress, 0x19, 7);  //Sample rate divider.
+  writeByte(MPUAddress, 0x23, 0);  //Disable FIFO.
+  writeByte(MPUAddress, 0x3B, 1);  //Interrupt Enable.
+  writeByte(MPUAddress, 0x1A, 6);  //DLPF.
+  writeByte(MPUAddress, 0x1B, 0);  //Gyro range.
+  writeByte(MPUAddress, 0x1C, 0);  //Accel range.
+
+  Serial.print("I am address: ");  Serial.println(readByte(MPUAddress, 117));
+
+  Serial.println();
+  Serial.println(F("Begin MPU6050 Calibration"));
+  for (int sample=0; sample<samples; sample++) {
+    while ((readByte(MPUAddress, 58) & 1) == 0) {} //wait for data ready.
+
+    //Read the sensor data byte array.
+    readBytes(MPUAddress, 59, 14);
+    for (i=0; i<14; i++) {
+      sensorRawB[i] = Wire.read();
+    }
+
+    //calculate delta time.
+    myTime = micros();
+    dt = (myTime - lastTime) / 1000000.0;
+    lastTime = myTime;
+    Serial.print("Sample ");  Serial.print(sample);
+    Serial.print("    dt = ");  Serial.println(dt,6);
+  
+    //Convert all axes to floats and add up the readings.
+    j = 0;
+    for (i=0; i<7; i++) {
+      sensorRawI[i] = (sensorRawB[j] << 8) | sensorRawB[j+1];
+      j += 2;
+      readings[i] = (float)sensorRawI[i] / divisors[i];
+      sums[i] += readings[i];
+
+      //Alternate accel calibration using velocity.
+      if (i < 3)  {
+        veloSums[i] = veloSums[i] + readings[i] * dt;
+        veloCalibs[i] = veloCalibs[i] - veloSums[i]/100/dt;
+      }
+      
+/*
+      //print the data.
+      Serial.print(sensorRawI[i]);  Serial.print("\t");
+      Serial.print(veloCalibs[i],6);  Serial.print("\t");
+      Serial.print(readings[i],6);  Serial.print("\t");
+      Serial.print(sums[i],6);  Serial.print("\t");
+      if (i < 3) {Serial.print(veloCalibs[i],6);  Serial.print("\t"); }
+      Serial.println();
+      }    */
+        
+    }  //end of samples. 
+
+  //Print the calibration values.
+  Serial.println("========================");
+  for (i=0; i<7; i++) {
+    calibrations[i] = sums[i] / 1000.0;
+    if (i < 3) calibrations[i] = calibrations[i] * 384.6;
+    Serial.print(labels[i]);
+    Serial.print("  ");
+    Serial.println(calibrations[i],6);
+  }
+
+  Serial.print("Delta T");  Serial.print("\t");
+  Serial.print("Sensor");  Serial.print("\t");
+  Serial.print("Calibrate");  Serial.print("\t");
+  Serial.print("Readings");  Serial.print("\t");
+  Serial.print("Velocity");  Serial.print("\t");
+  Serial.print("Distance");  Serial.print("\t");
+  Serial.println();
+  Serial.flush();
+
+
+
+} //End of setup section.
+
+void loop() {
+  while ((readByte(MPUAddress, 58) & 1) == 0) {} //Wait for data ready.
+  
+  readBytes(MPUAddress, 59, 14);  //read the MPU.
+  for (i=0; i<14; i++) {
+    sensorRawB[i] = Wire.read();
+  }
+
+  j = 0;
+  for (i=0; i<7; i++) {
+    sensorRawI[i] = (sensorRawB[j] << 8) | sensorRawB[j+1];
+    j += 2;
+    readings[i] = ((float)sensorRawI[i] - calibrations[i]) / divisors[i];
+  }
+
+  //Calculate time constant.
+  myTime = micros();
+  tc = (myTime - lastTime) / 1000000.0;
+  lastTime = myTime;
+
+  //Integrate accelerations for velocities.
+  for (i=0; i<3; i++) {
+    velocities[i] = velocities[i] + tc * readings[i];
+    //low frequency calibration correction.
+    //int cf = 2;  if (velocities[i] > 0) cf = -2;
+    calibrations[i] = calibrations[i] + (int)(velocities[i] * 3.0);
+  }
+
+  //Integrate velocities for distance.
+  for (i=0; i<3; i++) {
+    distances[i] = distances[i] + tc * velocities[i];
+  }
+
+  if (millis() <14000) {
+    //Select the axis to print.
+    j = 0;  //this is the x accel axis.
+    Serial.print(tc, 6);  Serial.print("\t");
+    Serial.print(sensorRawI[j]);  Serial.print("\t");
+    Serial.print(calibrations[j]);  Serial.print("\t");
+    Serial.print(readings[j],6);  Serial.print("\t");
+    Serial.print(velocities[j],6);  Serial.print("\t");
+    Serial.print(distances[j],6);  Serial.print("\t");
+    Serial.print(millis());
+    Serial.println();
+    Serial.flush();
+  }
+
+  delay(1);
+  
+} //end of Loop section.
